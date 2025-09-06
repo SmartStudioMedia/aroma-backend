@@ -1,1 +1,118 @@
+generator client { provider = "prisma-client-js" }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // hashed
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model Settings {
+  id           Int     @id @default(1)
+  brandName    String  @default("AROMA")
+  logoUrl      String?
+  primaryColor String  @default("#f97316") // orange-500
+  secondaryColor String @default("#ffffff")
+  backgroundUrl String?
+  font         String  @default("Inter")
+  currency     String  @default("EUR")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      Json     // localized labels: {en:"Burgers",...}
+  icon      String?  // emoji or icon key
+  position  Int      @default(0)
+  items     MenuItem[]
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  name        Json     // localized: {en:"Classic Burger",...}
+  description Json
+  nutrition   Json     // localized or structured {protein,carbs,fats}
+  ingredients Json
+  price       Decimal  @db.Decimal(10,2)
+  media       Media[]
+  isAvailable Boolean  @default(true)   // hide/unhide
+  position    Int      @default(0)
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      MenuItem @relation(fields: [itemId], references: [id])
+  type      MediaType
+  url       String
+  position  Int      @default(0)
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model Table {
+  id        String   @id @default(cuid())
+  number    Int      @unique
+  name      String?  // "Window 1" etc
+  qrSlug    String   @unique // used in QR URL
+  isActive  Boolean  @default(true)
+  orders    Order[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  tableId     String?
+  table       Table?      @relation(fields: [tableId], references: [id])
+  type        OrderType   // DINE_IN | TAKEAWAY
+  items       OrderItem[]
+  subtotal    Decimal     @db.Decimal(10,2)
+  total       Decimal     @db.Decimal(10,2)
+  status      OrderStatus @default(PENDING) // PENDING | CONFIRMED | FULFILLED | CANCELLED
+  payment     Payment?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  itemId    String
+  item      MenuItem @relation(fields: [itemId], references: [id])
+  nameSnap  Json     // snapshot of name/title at order time
+  priceSnap Decimal  @db.Decimal(10,2) // price at order time
+  qty       Int
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id])
+  provider     PaymentProvider
+  providerRef  String?  // Stripe session / PayPal order id
+  status       PaymentStatus @default(PENDING)
+  amount       Decimal  @db.Decimal(10,2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum OrderType { DINE_IN TAKEAWAY }
+enum OrderStatus { PENDING CONFIRMED FULFILLED CANCELLED }
+enum PaymentProvider { STRIPE PAYPAL CASH }
+enum PaymentStatus { PENDING PAID FAILED REFUNDED }
 
